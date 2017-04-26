@@ -1,0 +1,977 @@
+/**
+ * 
+ */
+package org.iita.security.service.impl;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+import javax.persistence.EntityManager;
+import javax.persistence.NoResultException;
+import javax.persistence.NonUniqueResultException;
+import javax.persistence.PersistenceContext;
+import javax.persistence.Query;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.hibernate.LazyInitializationException;
+import org.iita.security.model.Preference;
+import org.iita.security.model.User;
+import org.iita.security.model.UserDelegation;
+import org.iita.security.model.UserLookup;
+import org.iita.security.model.UserPasswordRequest;
+import org.iita.security.model.UserRole;
+import org.iita.security.model.UserStatus;
+import org.iita.security.model.User.AuthenticationType;
+import org.iita.security.service.UserImportService;
+import org.iita.security.service.UserService;
+import org.iita.security.service.UserServiceException;
+import org.iita.util.PagedResult;
+import org.iita.util.StringUtil;
+import org.springframework.security.Authentication;
+import org.springframework.security.GrantedAuthority;
+import org.springframework.security.annotation.Secured;
+import org.springframework.security.context.SecurityContextHolder;
+import org.springframework.security.providers.UsernamePasswordAuthenticationToken;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * @author mobreza
+ */
+public class UserServiceImpl implements UserService {
+	private static final Log log = LogFactory.getLog(UserServiceImpl.class);
+	private UserImportService userImportService = null;
+	private EntityManager entityManager;
+	private String applicationName = null;
+	private List<String> otherRoles = new ArrayList<String>();
+
+	/**
+	 * @param applicationName the applicationName to set
+	 */
+	public void setApplication(String applicationId) {
+		log.warn("Application ID configured to: " + applicationId);
+		this.applicationName = applicationId;
+	}
+
+	/**
+	 * @param entityManager the entityManager to set
+	 */
+	@PersistenceContext
+	public void setEntityManager(EntityManager entityManager) {
+		this.entityManager = entityManager;
+	}
+
+	/**
+	 * @param userImportService the userImportService to set
+	 */
+	public void setUserImportService(UserImportService userImportService) {
+		this.userImportService = userImportService;
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#loadUserByUsername(java.lang.String)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public User loadUserByUsername(String username) {
+		if (username == null)
+			return null;
+
+		try {
+			User u = (User) this.entityManager.createQuery("from User u where u.userName=:username").setParameter("username", username).setMaxResults(1)
+					.getSingleResult();
+			u.getAccessTags().size();
+			return u;
+		} catch (javax.persistence.NoResultException e) {
+			return null;
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public User find(long id) {
+		return entityManager.find(User.class, id);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> findAll() {
+		Query query = this.entityManager.createQuery("from User u where u.status!=? order by u.lastName, u.firstName").setParameter(1, UserStatus.DELETED);
+		return query.getResultList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public PagedResult<User> findAll(int start, int maxResults) {
+		PagedResult<User> paged = new PagedResult<User>(start, maxResults);
+
+		paged.setResults(this.entityManager.createQuery("from User u where u.status!=:status order by u.lastName, u.firstName").setParameter("status",
+				UserStatus.DELETED).setFirstResult(start).setMaxResults(maxResults).getResultList());
+		if (paged.getResults() != null && paged.getResults().size() > 0) {
+			// find max records
+			paged.setTotalHits(((Long) this.entityManager.createQuery("select count (*) from User u where u.status!=:status").setParameter("status",
+					UserStatus.DELETED).getSingleResult()).intValue());
+		}
+		return paged;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public PagedResult<User> findAll(int startAt, int maxResults, String filter, boolean includeImportService) {
+		PagedResult<User> paged = new PagedResult<User>(startAt, maxResults);
+
+		String filterLike = "%" + filter + "%";
+
+		paged
+				.setResults(this.entityManager
+						.createQuery(
+								"from User u where u.status!=:status and (u.lastName like :filterLike or u.userName like :filterLike or u.mail like :filterLike or :filter in elements(u.lookups)) order by u.lastName, u.firstName")
+						.setParameter("status", UserStatus.DELETED).setParameter("filterLike", filterLike).setParameter("filter", filter).setFirstResult(
+								startAt).setMaxResults(maxResults).getResultList());
+
+		if (paged.getResults() != null && paged.getResults().size() > 0) {
+			// find max records
+			paged
+					.setTotalHits(((Long) this.entityManager
+							.createQuery(
+									"select count (*) from User u where u.status!=:status and (u.lastName like :filterLike or u.userName like :filterLike or u.mail like :filterLike or :filter in elements(u.lookups))")
+							.setParameter("status", UserStatus.DELETED).setParameter("filterLike", filterLike).setParameter("filter", filter).getSingleResult())
+							.intValue());
+		}
+
+		if (this.userImportService != null && (paged.getTotalHits() == 0 || includeImportService)) {
+			log.debug("DB search found no matching user " + filterLike + ". Trying import service.");
+			// try import service search
+			List<User> imported = this.userImportService.findAll(filter);
+			if (imported != null) {
+				paged.getResults().addAll(0, imported);
+				paged.setTotalHits(paged.getTotalHits() + imported.size());
+				paged.setMaxResults((int) paged.getTotalHits());
+			}
+		}
+
+		return paged;
+	}
+
+	@Override
+	@Transactional
+	@Secured( { "ROLE_ADMIN" })
+	public String remove(long id) {
+		User user = find(id);
+		if (user != null) {
+			user.setStatus(UserStatus.DELETED);
+			entityManager.merge(user);
+			return "success";
+		} else {
+			return "input";
+		}
+	}
+
+	@Override
+	@Transactional
+	@Secured( { "ROLE_ADMIN" })
+	public void save(User user) {
+		try {
+			try {
+				List<UserLookup> lookups = user.getLookups();
+				if (lookups != null)
+					for (int i = lookups.size() - 1; i >= 0; i--)
+						if (lookups.get(i).getIdentifier() == null || lookups.get(i).getIdentifier().trim().length() == 0) {
+							UserLookup lookup = lookups.remove(i);
+							this.entityManager.remove(lookup);
+						} else
+							lookups.get(i).setUser(user);
+
+				List<UserRole> roles = user.getRoles();
+				if (roles != null)
+					for (int i = roles.size() - 1; i >= 0; i--)
+						if (roles.get(i).getRole() == null || roles.get(i).getRole().trim().length() == 0) {
+							UserRole role = roles.remove(i);
+							this.entityManager.remove(role);
+						} else
+							roles.get(i).setUser(user);
+			} catch (LazyInitializationException e) {
+
+			}
+
+			if (user.getId() == null) {
+				log.debug("new user id is:  " + user.getId());
+				entityManager.persist(user);
+				log.debug("new user id is: now persisted!");
+			} else {
+				// update driver info
+				log.trace("Merging user data for id=" + user.getId());
+				entityManager.merge(user);
+			}
+		} catch (RuntimeException e) {
+			log.error(e);
+			throw e;
+		}
+	}
+
+	@Override
+	@Transactional
+	public void updateLoginData(User user) {
+		try {
+			if (user.getId() == null) {
+				log.debug("new user id is:  " + user.getId());
+				entityManager.persist(user);
+				log.debug("new user id is: now persisted!");
+			} else {
+				// update driver info
+				log.trace("Merging user data for id=" + user.getId());
+				entityManager.merge(user);
+			}
+		} catch (RuntimeException e) {
+			log.error(e);
+			throw e;
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#lookup(java.lang.String)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public User lookup(String identifier) {
+		return lookup(identifier, true);
+	}
+
+	/*
+	 * 
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public User lookup(String identifier, boolean allowImport) {
+		log.info("Looking up user with identifier: " + identifier);
+		try {
+			return (User) entityManager.createQuery("select u from User u where u.userName=:identifier or u.mail=:identifier").setParameter("identifier",
+					identifier).getSingleResult();
+		} catch (NoResultException e) {
+			log.info("User not found in User table.");
+		}
+
+		try {
+			return (User) entityManager.createQuery("select ul.user from UserLookup ul where ul.identifier like :identifier").setParameter("identifier",
+					identifier).getSingleResult();
+		} catch (NoResultException e) {
+			if (allowImport)
+				return this.importUser(identifier);
+		} catch (Exception e) {
+			log.info("Lookup service: '" + identifier + "' did not find any matches. Error: " + e.getMessage());
+		}
+		return null;
+	}
+
+	/**
+	 * @return
+	 * @see org.iita.security.service.UserService#getDelegatedFrom(org.iita.security.model.User)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> getDelegatedFrom(User user) {
+		return getDelegatedFrom(user, this.applicationName);
+	}
+	
+	/**
+	 * @return
+	 * @see org.iita.security.service.UserService#getUserDelegatedFrom(org.iita.security.model.User)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public List<UserDelegation> getUserDelegatedFrom(User user) {
+		return getUserDelegatedFrom(user, this.applicationName);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#getDelegatedFrom(org.iita.par.model. User, java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> getDelegatedFrom(User user, String application) {
+		log.info("Listing user delegations to " + user + " in " + application);// and ud.toDate is null) or " +	"(ud.delegatedTo=:user and ud.application=:application and ud.toDate is not null and now() between ud.from and ud.toDate)" +	")
+		return entityManager.createQuery("select ud.owner from UserDelegation ud where (" +
+				"(ud.delegatedTo=:user and ud.application=:application and ud.toDate is null and ud.fromDate is null)" +
+				" or (ud.delegatedTo=:user and ud.application=:application and DATE(now()) between DATE(ud.fromDate) and DATE(ud.toDate))" +
+				" or (ud.delegatedTo=:user and ud.application=:application and ud.toDate is null and DATE(now())>DATE(ud.fromDate))" +
+				")").setParameter(
+				"user", user).setParameter("application", application).getResultList();
+		//return entityManager.createQuery("select ud.owner from UserDelegation ud where " +
+				//"ud.delegatedTo=:user and ud.application=:application").setParameter("user", user).setParameter("application", application).getResultList();
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#getUserDelegatedFrom(org.iita.par.model. User, java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<UserDelegation> getUserDelegatedFrom(User user, String application) {
+		log.info("Listing user delegations to " + user + " in " + application);// and ud.toDate is null) or " +	"(ud.delegatedTo=:user and ud.application=:application and ud.toDate is not null and now() between ud.from and ud.toDate)" +	")
+		//return entityManager.createQuery("from UserDelegation ud where (" +
+		//		"(ud.delegatedTo=:user and ud.application=:application and ud.toDate is null and ud.fromDate is null)" +
+		//		" or (ud.delegatedTo=:user and ud.application=:application and DATE(now()) between DATE(ud.fromDate) and DATE(ud.toDate))" +
+		//		" or (ud.delegatedTo=:user and ud.application=:application and ud.toDate is null and DATE(now())>DATE(ud.fromDate))" +
+		//		")").setParameter(
+		//		"user", user).setParameter("application", application).getResultList();
+		return entityManager.createQuery("from UserDelegation ud where " +
+				"ud.delegatedTo=:user and ud.application=:application").setParameter("user", user).setParameter("application", application).getResultList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> getDelegatedTo(User user) {
+		return this.getDelegatedTo(user, this.applicationName);
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public List<UserDelegation> getUserDelegatedTo(User user) {
+		return this.getUserDelegatedTo(user, this.applicationName);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#getDelegatedTo(org.iita.par.model.User, java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> getDelegatedTo(User user, String application) {
+		log.info("Listing user delegations of " + user + " in " + application);//and ud.toDate is null) or " +		"(ud.owner=:user and ud.application=:application and ud.toDate is not null and now() between ud.from and ud.toDate)" +		")
+		return entityManager.createQuery("select ud.delegatedTo from UserDelegation ud where (" +
+				"(ud.owner=:user and ud.application=:application and ud.toDate is null and ud.fromDate is null)" +
+				" or (ud.owner=:user and ud.application=:application and DATE(now()) between DATE(ud.fromDate) and DATE(ud.toDate))" +
+				" or (ud.owner=:user and ud.application=:application and ud.toDate is null and DATE(now())>DATE(ud.fromDate))" +
+				")").setParameter(
+				"user", user).setParameter("application", application).getResultList();
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#getUserDelegatedTo(org.iita.par.model.User, java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<UserDelegation> getUserDelegatedTo(User user, String application) {
+		log.info("Listing user delegations of " + user + " in " + application);//and ud.toDate is null) or " +		"(ud.owner=:user and ud.application=:application and ud.toDate is not null and now() between ud.from and ud.toDate)" +		")
+		//return entityManager.createQuery("from UserDelegation ud where (" +
+				//"(ud.owner=:user and ud.application=:application and ud.toDate is null and ud.fromDate is null)" +
+				//" or (ud.owner=:user and ud.application=:application and DATE(now()) between DATE(ud.fromDate) and DATE(ud.toDate))" +
+				//" or (ud.owner=:user and ud.application=:application and ud.toDate is null and DATE(now())>DATE(ud.fromDate))" +
+				//")").setParameter(
+				//"user", user).setParameter("application", application).getResultList();
+		return entityManager.createQuery("from UserDelegation ud where " +
+				"ud.owner=:user and ud.application=:application").setParameter(
+				"user", user).setParameter("application", application).getResultList();
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#getDelegatedTo(org.iita.par.model.User, java.lang.String, java.util.Calendar, java.util.Calendar)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> getDelegatedTo(User user, String application, Calendar from, Calendar to) {
+		log.info("Listing user delegations of " + user + " in " + application);
+		return entityManager.createQuery("select ud.delegatedTo from UserDelegation ud where ud.owner=:user and ud.application=:application").setParameter(
+				"user", user).setParameter("application", application).getResultList();
+	}
+
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER" })
+	public void addDelegation(User owner, User delegate) throws UserServiceException {
+		this.addDelegation(owner, delegate, this.applicationName);
+	}
+	
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER" })
+	public void addDelegation(User owner, User delegate, Calendar from, Calendar to) throws UserServiceException {
+		this.addDelegation(owner, delegate, this.applicationName, from, to);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#addDelegation(org.iita.par.model.User, org.iita.par.model.User)
+	 */
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER" })
+	public void addDelegation(User owner, User delegate, String application) throws UserServiceException {
+		log.info("Adding delegation 1 from " + owner + " to " + delegate + " in " + application);
+		List<User> delegatedTo = getDelegatedTo(owner, application);
+		if (delegatedTo.contains(delegate)) {
+			log.info("Delegation exists from " + owner + " to " + delegate + " in " + application);
+			throw new UserServiceException("User is already on delegation list");
+		}
+
+		UserDelegation userDelegation = new UserDelegation();
+		userDelegation.setApplication(application);
+		userDelegation.setOwner(owner);
+		userDelegation.setDelegatedTo(delegate);
+		entityManager.persist(userDelegation);
+		log.info("Delegation added from " + owner + " to " + delegate + " in " + application);
+	}
+	
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#addDelegation(org.iita.par.model.User, org.iita.par.model.User, from, to)
+	 */
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER" })
+	public void addDelegation(User owner, User delegate, String application, Calendar from, Calendar toDate) throws UserServiceException {
+		log.info("Adding delegation 2 from " + owner + " to " + delegate + " in " + application);
+		List<User> delegatedTo = getDelegatedTo(owner, application);
+		if (delegatedTo.contains(delegate)) {
+			log.info("Delegation exists from " + owner + " to " + delegate + " in " + application);
+			throw new UserServiceException("User is already on delegation list");
+		}
+
+		UserDelegation userDelegation = new UserDelegation();
+		userDelegation.setApplication(application);
+		userDelegation.setOwner(owner);
+		userDelegation.setDelegatedTo(delegate);
+		userDelegation.setFromDate(from.getTime());
+		userDelegation.setToDate(toDate.getTime());
+		entityManager.persist(userDelegation);
+		log.info("Delegation added from " + owner + " to " + delegate + " in " + application);
+	}
+
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER" })
+	public void deleteDelegation(User user, String identifier) throws UserServiceException {
+		this.deleteDelegation(user, identifier, this.applicationName);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#deleteDelegation(org.iita.par.model. User, java.lang.String, java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER", "ROLE_ADMIN" })
+	public void deleteDelegation(User user, String email, String application) throws UserServiceException {
+		log.info("Removing delegation from " + user + " to " + email + " in " + application);
+		User delegate = lookup(email);
+		if (delegate == null) {
+			throw new UserServiceException("Could not find delegated user.");
+		}
+		
+		// list delegations
+		List<UserDelegation> delegations = entityManager.createQuery(
+				"from UserDelegation ud where ud.application=:application and ud.owner=:owner and ud.delegatedTo=:delegatedTo").setParameter("application",
+				application).setParameter("owner", user).setParameter("delegatedTo", delegate).getResultList();
+		
+		// Remove delegations
+		for (UserDelegation dg : delegations) {
+			log.info("Delegation to be removed: " + dg);
+			entityManager.remove(dg);
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public UserDelegation findDelegation(User user, String identifier) throws UserServiceException {
+		return this.findDelegation(user, identifier, this.applicationName);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#deleteDelegation(org.iita.par.model. User, java.lang.String, java.lang.String)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public UserDelegation findDelegation(User user, String identifier, String application) throws UserServiceException {
+		log.info("Looking up delegation from " + user + " to " + identifier + " in " + application);
+		User delegate = lookup(identifier);
+		if (delegate == null) {
+			throw new UserServiceException("Could not find delegated user.");
+		}
+		try {
+			// return delegation
+			return (UserDelegation) entityManager.createQuery(
+					"from UserDelegation ud where ud.application=:application and ud.owner=:owner and ud.delegatedTo=:delegatedTo").setParameter("application",
+					application).setParameter("owner", delegate).setParameter("delegatedTo", user).getSingleResult();
+		} catch (javax.persistence.NoResultException e) {
+			log.error("User " + user.getUsername() + " tried to access delegation of " + identifier + ". Delegation does not exist.");
+			return null;
+		} catch (Exception e) {
+			log.error(e.getMessage(), e);
+			return null;
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#switchUser(org.iita.par.model.User, org.iita.par.model.UserDelegation)
+	 */
+	@Override
+	@Secured( { "ROLE_USER" })
+	public void switchUser(User user, UserDelegation delegation) {
+		if (delegation.getDelegatedTo().getId().equals(user.getId())) {
+			log.info("User " + user.getUsername() + " switching TO user " + delegation.getOwner().getUsername());
+			switchUser(delegation.getOwner());
+		} else {
+			log
+					.error("User " + user.getUsername() + " tried switching to user " + delegation.getOwner().getUsername()
+							+ ", but the delegation does not match.");
+		}
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#switchUser(org.iita.par.model.User)
+	 */
+	@Override
+	@Secured( { "ROLE_USER" })
+	public void switchUser(User targetUser) {
+		log.info("Switching TO user " + targetUser.getUsername());
+		// preload accessTags
+		targetUser.getAccessTags().size();
+
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		User currentAuthentication = (User) authentication.getPrincipal();
+		if (currentAuthentication.getImpersonator() != null) {
+			log.warn("Already contains old principal!");
+			authentication = currentAuthentication.getImpersonator();
+		}
+		log.debug("Has granted authorities: " + targetUser.getAuthorities().length);
+		for (GrantedAuthority x : targetUser.getAuthorities()) {
+			log.debug("Granted auth: " + x);
+		}
+		targetUser.setImpersonator(authentication);
+		UsernamePasswordAuthenticationToken impersonatedAuthentication = new UsernamePasswordAuthenticationToken(targetUser, "nopassword", targetUser
+				.getAuthorities());
+		SecurityContextHolder.getContext().setAuthentication(impersonatedAuthentication);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#unswitchUser()
+	 */
+	@Override
+	@Secured( { "ROLE_USER" })
+	public void unswitchUser() {
+		log.info("Unswitching user.");
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		User currentAuthentication = (User) authentication.getPrincipal();
+		if (currentAuthentication.getImpersonator() == null) {
+			log.warn("Old authentication not found. Cannot unswitch.");
+			return;
+		}
+		SecurityContextHolder.getContext().setAuthentication(currentAuthentication.getImpersonator());
+	}
+
+	/**
+	 * @see org.iita.security.service.UserService#isUserSwitched()
+	 */
+	@Override
+	public boolean isUserSwitched() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication == null)
+			return false;
+		User currentAuthentication = (User) authentication.getPrincipal();
+		if (currentAuthentication == null)
+			return false;
+		return currentAuthentication.getImpersonator() != null;
+	}
+
+	@Override
+	@Transactional
+	public void setPassword(User user, String passwd1) {
+		this.setPassword(user, passwd1, true);
+	}
+
+	/**
+	 * Sets user's password and configures the account to use PASSWORD login instead of LDAP.
+	 * 
+	 * @see org.iita.par.service.UserService#setPassword(java.lang.String)
+	 */
+	@Override
+	@Transactional
+	public void setPassword(User user, String passwd1, boolean changeAuthenticationType) {
+		log.info("Setting password for " + user.getUsername() + ".");
+		if (changeAuthenticationType) {
+			log.info("Authentication type set to PASSWORD");
+			user.setAuthenticationType(AuthenticationType.PASSWORD);
+		}
+		user.setPassword(org.springframework.security.util.Sha512DigestUtils.shaHex(passwd1));
+		updateLoginData(user);
+	}
+
+	/**
+	 * Clears user's password and configures the account to use DEFAULT authentication mechanism (probably LDAP)
+	 * 
+	 * @see org.iita.par.service.UserService#clearPassword(org.iita.par.model.User)
+	 */
+	@Override
+	@Transactional
+	@Secured( { "ROLE_ADMIN", "BF_USERACCESS" })
+	public void clearPassword(User user) {
+		log.info("Clearing PASSWORD authentication for " + user.getUsername() + ". Switching to DEFAULT.");
+		user.setAuthenticationType(AuthenticationType.DEFAULT);
+		user.setPassword(null);
+		updateLoginData(user);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#isPasswordValid(org.iita.par.model.User, java.lang.String)
+	 */
+	@Override
+	public boolean isPasswordValid(User user, String password) {
+		log.info("Checking password for " + user);
+		if (password == null) {
+			log.debug("Provided null password for " + user);
+			return false;
+		}
+		String hash = org.springframework.security.util.Sha512DigestUtils.shaHex(password);
+		log.info("Password check for " + user + ": hash " + hash + "==" + user.getPassword() + ": " + hash.equalsIgnoreCase(user.getPassword()));
+		return hash.equalsIgnoreCase(user.getPassword());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<UserRole> getUserRoles(User user) {
+		return this.getUserRoles(user, this.applicationName);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#getUserRoles(org.iita.par.model.User, java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<UserRole> getUserRoles(User user, String application) {
+		log.info("Loading roles " + application + ".* for " + user);
+		return this.entityManager.createQuery("from UserRole ur where ur.application=:application and ur.user=:user").setParameter("application", application)
+				.setParameter("user", user).getResultList();
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#requestPassword(org.iita.par.model.User)
+	 */
+	@Override
+	@Transactional
+	public String requestPassword(User user) {
+		log.info("Creating password request for " + user);
+		UserPasswordRequest request = new UserPasswordRequest();
+		request.setDateGenerated(Calendar.getInstance().getTime());
+		request.setKey(org.iita.util.StringUtil.getRandomAlphaNumericString(10));
+		request.setUser(user);
+		request.setStatus(0);
+		this.entityManager.persist(request);
+		log.info("Password request for " + user + " has key " + request.getKey());
+		return request.getKey();
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#generatePassword(org.iita.par.model. User)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional
+	public String generatePassword(User user, String key) {
+		log.info("Generating password for " + user + " with key " + key);
+		for (UserPasswordRequest request : (List<UserPasswordRequest>) this.entityManager.createQuery(
+				"from UserPasswordRequest r where r.user=:user and r.key=:key and r.status=0").setParameter("user", user).setParameter("key", key)
+				.getResultList()) {
+			log.info("Regenerating password for user " + user);
+			String newPassword = StringUtil.getRandomAlphaNumericString(7);
+			request.setDateUsed(Calendar.getInstance().getTime());
+			request.setStatus(1);
+			this.entityManager.merge(request);
+			this.setPassword(user, newPassword);
+			return newPassword;
+		}
+		log.info("No matching password request was found for " + user.getUsername() + " and key " + key);
+		return null;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> findByRole(String role) {
+		return this.findByRole(this.applicationName, role);
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * @see org.iita.par.service.UserService#findByRole(java.lang.String)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> findByRole(String application, String role) {
+		return this.entityManager.createQuery(
+				"select ur.user from UserRole ur where ur.application=:application and ur.role=:role order by ur.user.lastName, ur.user.firstName")
+				.setParameter("application", application).setParameter("role", role).getResultList();
+	}
+
+	/**
+	 * Do not put @Secured on this! Is called by unauthenticated users at login
+	 * 
+	 * @see org.iita.security.service.UserService#importUser(java.lang.String)
+	 */
+	@Override
+	@Transactional
+	public User importUser(String username) {
+		// try loading existing user
+		User existingUser = this.loadUserByUsername(username);
+		if (existingUser != null) {
+			log.debug("Tried to import existing user: " + username + ", returning existing entity.");
+			return existingUser;
+		}
+
+		if (userImportService == null) {
+			log.warn("User import service not specified. Cannot import users.");
+			return null;
+		}
+
+		User importedUser = userImportService.findUser(username);
+		if (importedUser == null) {
+			log.warn("User " + username + " not found by user import service.");
+		} else {
+			log.warn("User " + username + " found by import service. Persisting now.");
+			this.entityManager.persist(importedUser);
+		}
+		return importedUser;
+	}
+
+	/**
+	 * @see org.iita.security.service.UserService#findByName(java.lang.String, int)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<User> findByName(String lookup, int maxResults) {
+		lookup = lookup + "%";
+		return this.entityManager.createQuery("from User u where u.lastName like :lookup or u.firstName like :lookup order by u.lastName, u.firstName")
+				.setParameter("lookup", lookup).setMaxResults(maxResults).getResultList();
+	}
+
+	/**
+	 * @see org.iita.security.service.UserService#getUserRoles()
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	public List<String> getUserRoles() {
+		List<String> roles = this.entityManager.createQuery("select distinct ur.role from UserRole ur order by ur.role").getResultList();
+		for (String role : otherRoles) {
+			if (!(roles.contains(role))) {
+				roles.add(role);
+			}
+		}
+		return roles;
+	}
+
+	/**
+	 * @see org.iita.security.service.UserService#findByRole(java.lang.String, int, int)
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public PagedResult<User> findByRole(String role, int startAt, int maxResults) {
+		PagedResult<User> paged = new PagedResult<User>(startAt, maxResults);
+
+		paged.setResults(this.entityManager.createQuery(
+				"select u from User u inner join u.roles r where u.status!=:status and r.role=:role order by u.lastName, u.firstName").setParameter("status",
+				UserStatus.DELETED).setParameter("role", role).setFirstResult(startAt).setMaxResults(maxResults).getResultList());
+		if (paged.getResults() != null && paged.getResults().size() > 0) {
+			// find max records
+			paged.setTotalHits(((Long) this.entityManager.createQuery(
+					"select count (u) from User u inner join u.roles r where u.status!=:status and r.role=:role").setParameter("status", UserStatus.DELETED)
+					.setParameter("role", role).getSingleResult()).intValue());
+		}
+		return paged;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public User findByStaffID(String staffID) {
+		return findByStaffID(staffID, false);
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.NESTED)
+	public User findByStaffID(String staffId, boolean allowImport) {
+		log.info("Finding user by staff ID: " + staffId);
+		try {
+			User user = (User) this.entityManager.createQuery("from User u where u.staffId=:staffID").setParameter("staffID", staffId).getSingleResult();
+			log.info("User " + user + " matches staffId=" + staffId);
+			return user;
+		} catch (NoResultException e) {
+			log.info("No staff found in User table for ID: " + staffId);
+		} catch (NonUniqueResultException e) {
+			log.error("Multiple staff found for ID: " + staffId);
+			return null;
+		}
+
+		if (allowImport) {
+			log.info("Staff ID " + staffId + " not found in local database, using import service");
+			User user = this.userImportService.findUserByStaffID(staffId);
+			if (user != null) {
+				// check if username exists in current system, if so, we would need to update existing user's record
+				User existingUser = this.loadUserByUsername(user.getUsername());
+				if (existingUser != null) {
+					// no staff ID
+					if (existingUser.getStaffId() == null || existingUser.getStaffId().trim().length() == 0) {
+						log.info("Existing user has no staff id, assigning now to " + staffId);
+						existingUser.setStaffId(staffId);
+						this.entityManager.merge(existingUser);
+						return existingUser;
+					} else
+					// has staff id
+					{
+						log.info("User " + existingUser.getUsername() + " has staff ID=" + existingUser.getStaffId() + " that does not match " + staffId);
+						return null;
+					}
+				} else {
+					this.entityManager.persist(user);
+					return user;
+				}
+			} else
+				// return non existing user
+				return null;
+		} else {
+			log.info("Import through user import service not allowed.");
+			return null;
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Preference getPreference(User user, String key) {
+		Preference pref = null;
+		try {
+			pref = (Preference) entityManager.createQuery("FROM Preference p WHERE p.user=:user AND p.preferenceKey=:key").setParameter("user", user)
+					.setParameter("key", key).getSingleResult();
+		} catch (NoResultException e) {
+			log.info("No preference found for user '" + user + "' and key '" + key + "'.");
+		}
+
+		return pref;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Preference getPreference(Long id) {
+		Preference pref = null;
+		try {
+			pref = entityManager.find(Preference.class, id);
+		} catch (NoResultException e) {
+			log.info("No preference found for id '" + id + "'.");
+		}
+
+		return pref;
+	}
+
+	@Override
+	@Transactional
+	public void addPreference(User user, String key, Object value) throws Exception {
+		log.debug("addPreference " + user + " " + key + " " + value);
+
+		if (getPreference(user, key) == null) {
+			Preference pref = Preference.newInstance(key, value);
+
+			entityManager.persist(pref);
+		} else {
+			throw new Exception("Preference already exists.");
+		}
+	}
+
+	@Override
+	@Transactional
+	public void addPreference(Preference pref) throws Exception {
+		log.debug("addPreference " + pref);
+
+		if (getPreference(pref.getUser(), pref.getPreferenceKey()) == null) {
+			entityManager.persist(pref);
+		} else {
+			throw new Exception("Preference already exists.");
+		}
+	}
+
+	@Override
+	@Transactional
+	public void setPreference(User user, String key, Object value) {
+		Preference pref = getPreference(user, key);
+		pref.setPreferenceValue(value);
+
+		entityManager.merge(pref);
+	}
+
+	@Override
+	@Transactional
+	public void setPreference(Long id, Object value) {
+		Preference pref = entityManager.find(Preference.class, id);
+		pref.setPreferenceValue(value);
+
+		entityManager.merge(pref);
+	}
+
+	public void setAdditionalRoles(String additionalRoles) {
+		if (additionalRoles == null || additionalRoles.length() == 0) {
+			return;
+		}
+		String[] roles = additionalRoles.split(",");
+		for (String role : roles) {
+			if (role == null || role.trim().length() == 0)
+				continue;
+			this.otherRoles.add(role.trim());
+		}
+	}
+
+	/**
+	 * @see org.iita.security.service.UserService#autocompleteUser(java.lang.String, int)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	@Transactional(readOnly = true)
+	@Secured( { "ROLE_USER" })
+	public List<User> autocompleteUser(String filter, int i) {
+		if (filter == null)
+			return null;
+		filter = filter.trim();
+		if (filter.length() == 0)
+			return null;
+		filter = "%" + filter + "%";
+		return this.entityManager
+				.createQuery(
+						"select u from User u where u.userName like :filter or u.lastName like :filter or u.displayName like :filter or u.mail like :filter order by u.lastName, u.firstName")
+				.setParameter("filter", filter).setMaxResults(i).getResultList();
+	}
+
+	/**
+	 * @see org.iita.security.service.UserService#updateStaffID(org.iita.security.model.User, java.lang.String)
+	 */
+	@Override
+	@Transactional
+	@Secured( { "ROLE_USER" })
+	public void updateStaffID(User user, String staffId) {
+		// update dB
+		System.out.println("USER ID: " + user.getId());
+		User staff = this.find(user.getId());
+		staff.setStaffId(staffId);
+		this.entityManager.merge(staff);
+		// also update object
+		user.setStaffId(staffId);
+	}
+}

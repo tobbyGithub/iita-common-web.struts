@@ -1,0 +1,8 @@
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="iita-common-web by packages">
+  <test verbose="6" name="iita-common-web" annotations="JDK">
+    <packages>
+      <package name="org.iita.service.impl"/>
+    </packages>
+  </test>
+</suite>

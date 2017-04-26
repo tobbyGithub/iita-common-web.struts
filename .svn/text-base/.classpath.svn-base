@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry excluding="org/iita/struts/UserAction.java|org/iita/struts/UserLookupAction.java|org/iita/struts/UserProfileAction.java|org/iita/struts/UserRemindUsername.java|org/iita/struts/UserRoleAction.java|org/iita/struts/UserSupervisionAction.java" kind="src" path="src"/>
+	<classpathentry kind="src" output="test.bin" path="test"/>
+	<classpathentry excluding="*" kind="src" path="lib"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="con" path="org.eclipse.jst.j2ee.internal.module.container"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/iita-common"/>
+	<classpathentry exported="true" kind="lib" path="lib/ognl-2.6.11.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/struts2-core-2.0.14.jar" sourcepath="/home/mobreza/Projects/Java/Libraries/struts-2.0.14/src/core/src/main/java">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/struts-2.0.14/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/struts2-jasperreports-plugin-2.0.14.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/struts-2.0.14-plugins/struts2-jasperreports-plugin/apidocs/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/struts2-sitemesh-plugin-2.0.14.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/struts-2.0.14-plugins/struts2-sitemesh-plugin/apidocs/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/struts2-spring-plugin-2.0.14.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/struts-2.0.14-plugins/struts2-spring-plugin/apidocs/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/velocity-1.5.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/velocity-tools-view-1.4.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/xwork-2.0.7.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/struts-2.0.14/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jasperreports-extensions-1.3.1.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/commons-beanutils-1.7.0.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/commons-codec-1.3.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/commons-fileupload-1.2.1.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/commons-io-1.4.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/commons-lang-2.3.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/commons-logging-1.0.4.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/ejb3-persistence.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/freemarker-2.3.8.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/hibernate-annotations.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/hibernate-commons-annotations.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/hibernate-entitymanager.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/hibernate-search.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/hibernate3.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/lucene-core-2.3.0.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/mail.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/javamail-1.4.3/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/spring-context-support.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/spring-context.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/spring.jar" sourcepath="/home/mobreza/Projects/Java/Libraries/spring-framework-2.5.4/src">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/xml-apis.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/slf4j-api-1.5.6.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="/iita-common/lib/slf4j-jdk14-1.5.6.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jcommon-1.0.16.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jfreechart-1.0.13.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://www.jfree.org/jfreechart/api/javadoc/index.html"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jasperreports-3.6.0.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/iText-2.1.0.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jcaptcha-1.0-all.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://java.iita.cgiarad.org/JAVADOC/jcaptcha-1.0/"/>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/alfresco-jlan.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jsonplugin-0.34.jar" sourcepath="/home/mobreza/Projects/Other/jsonplugin/jsonplugin-read-only/src/main/java">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/commons-digester-1.8.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/jsp-api.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/servlet-api.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/antlr-2.7.6.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/poi-3.6-20091214.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/ehcache-web-1.6.0-beta2.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/dom4j-1.6.1.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/urlrewrite-2.6.0.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/jstl-1.1.2.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/ehcache-core-1.7.2.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="lib/log4j-1.2.15.jar">
+		<attributes>
+			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
