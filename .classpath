@@ -198,12 +198,12 @@
 			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/jsp-api.jar">
+	<classpathentry exported="true" kind="lib" path="lib/jsp-api.jar">
 		<attributes>
 			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/servlet-api.jar">
+	<classpathentry exported="true" kind="lib" path="lib/servlet-api.jar">
 		<attributes>
 			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
 		</attributes>
@@ -248,7 +248,8 @@
 			<attribute name="org.eclipse.jst.component.dependency" value="../"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/home/ken/Downloads/org.apache.tika.jar"/>
-	<classpathentry kind="lib" path="lib/struts2-core-2.0.14.jar"/>
+	<classpathentry exported="true" kind="lib" path="/root/git/iita-common-web.struts/lib/tika-core-0.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/struts2-core-2.0.14.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/tika-parsers-0.7.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
